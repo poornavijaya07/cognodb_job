@@ -5,15 +5,22 @@
 // ==============================================================================
 
 // Candidate Backend Base URLs to auto-probe
-const CANDIDATE_API_BASES = [
-  "http://127.0.0.1:8000",
-  "http://127.0.0.1:8001",
-  "http://localhost:8000",
-  "http://localhost:8001",
-  window.location.origin
-];
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:";
 
-let API_BASE = "http://127.0.0.1:8000";
+const CANDIDATE_API_BASES = isLocal
+  ? [
+      "http://127.0.0.1:8000",
+      "http://127.0.0.1:8001",
+      "http://localhost:8000",
+      "http://localhost:8001",
+      window.location.origin
+    ]
+  : [
+      window.location.origin,
+      "http://127.0.0.1:8000"
+    ];
+
+let API_BASE = isLocal ? "http://127.0.0.1:8000" : window.location.origin;
 
 // DOM Elements
 const connectionBadge = document.getElementById("connectionBadge");

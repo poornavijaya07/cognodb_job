@@ -1,13 +1,27 @@
+import os
 import logging
 from typing import List, Dict, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from neo4j.exceptions import ServiceUnavailable, AuthError, Neo4jError
 
 from app.database.connection import test_connection, close_driver
 from app.services.matching_service import matching_service
+
+# Locate frontend directory relative to this file or current working directory
+current_file_dir = os.path.dirname(os.path.abspath(__file__))  # backend/app
+backend_dir = os.path.dirname(current_file_dir)                # backend
+root_dir = os.path.dirname(backend_dir)                        # root
+
+FRONTEND_DIR_CANDIDATES = [
+    os.path.join(root_dir, "frontend"),
+    os.path.join(backend_dir, "frontend"),
+    os.path.join(os.getcwd(), "frontend"),
+    os.path.join(os.getcwd(), "..", "frontend"),
+]
+FRONTEND_DIR = next((d for d in FRONTEND_DIR_CANDIDATES if os.path.isdir(d)), None)
 
 # Configure logging
 logging.basicConfig(
@@ -37,7 +51,7 @@ app = FastAPI(
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for local frontend development
+    allow_origins=["*"],  # Allows all origins for local frontend development and hosted deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,12 +99,18 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 
 # ==============================================================================
-# API Routes
+# Frontend Static Asset & Root Routes
 # ==============================================================================
 
 @app.get("/", tags=["Health & Info"])
-def home():
-    """Application health and metadata endpoint."""
+def home(request: Request):
+    """Application health and metadata endpoint, or web interface for browser users."""
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept and FRONTEND_DIR:
+        index_file = os.path.join(FRONTEND_DIR, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file, media_type="text/html")
+
     return {
         "status": "online",
         "service": "CognoDB Job Recommendation API",
@@ -108,6 +128,37 @@ def home():
         }
     }
 
+
+@app.get("/style.css", include_in_schema=False)
+def serve_css():
+    if FRONTEND_DIR:
+        css_file = os.path.join(FRONTEND_DIR, "style.css")
+        if os.path.exists(css_file):
+            return FileResponse(css_file, media_type="text/css")
+    raise HTTPException(status_code=404, detail="style.css not found")
+
+
+@app.get("/script.js", include_in_schema=False)
+def serve_js():
+    if FRONTEND_DIR:
+        js_file = os.path.join(FRONTEND_DIR, "script.js")
+        if os.path.exists(js_file):
+            return FileResponse(js_file, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="script.js not found")
+
+
+@app.get("/index.html", include_in_schema=False)
+def serve_index():
+    if FRONTEND_DIR:
+        index_file = os.path.join(FRONTEND_DIR, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file, media_type="text/html")
+    raise HTTPException(status_code=404, detail="index.html not found")
+
+
+# ==============================================================================
+# API Routes
+# ==============================================================================
 
 @app.get("/health", tags=["Health & Info"])
 @app.get("/database-test", tags=["Health & Info"])
